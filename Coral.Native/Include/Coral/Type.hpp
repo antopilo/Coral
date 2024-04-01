@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core.hpp"
-#include "NativeString.hpp"
+#include "String.hpp"
 #include "ManagedObject.hpp"
 #include "MethodInfo.hpp"
 #include "FieldInfo.hpp"
@@ -12,30 +12,34 @@ namespace Coral {
 	class Type
 	{
 	public:
-		std::string_view GetName() const { return m_Name; }
-		std::string_view GetNamespace() const { return m_Namespace; }
-		std::string GetFullName() const;
-		std::string GetAssemblyQualifiedName() const;
+		String GetFullName() const;
+		String GetAssemblyQualifiedName() const;
 
 		Type& GetBaseType();
 
-		bool IsSubclassOf(const Type& InOther);
-		bool IsAssignableTo(const Type& InOther);
-		bool IsAssignableFrom(const Type& InOther);
+		int32_t GetSize() const;
+
+		bool IsSubclassOf(const Type& InOther) const;
+		bool IsAssignableTo(const Type& InOther) const;
+		bool IsAssignableFrom(const Type& InOther) const;
 
 		std::vector<MethodInfo> GetMethods() const;
 		std::vector<FieldInfo> GetFields() const;
 		std::vector<PropertyInfo> GetProperties() const;
 
+		bool HasAttribute(const Type& InAttributeType) const;
 		std::vector<Attribute> GetAttributes() const;
 
 		ManagedType GetManagedType() const;
 
+		bool IsSZArray() const;
+		Type& GetElementType();
+
 		bool operator==(const Type& InOther) const;
 
-		operator bool() const { return m_TypePtr != nullptr; }
+		operator bool() const { return m_Id != -1; }
 
-		TypeId GetTypeId() const { return m_TypePtr; }
+		TypeId GetTypeId() const { return m_Id; }
 
 	public:
 		template<typename... TArgs>
@@ -101,18 +105,14 @@ namespace Coral {
 		}
 
 	private:
-		void RetrieveName();
-
 		ManagedObject CreateInstanceInternal(const void** InParameters, const ManagedType* InParameterTypes, size_t InLength);
 		void InvokeStaticMethodInternal(std::string_view InMethodName, const void** InParameters, const ManagedType* InParameterTypes, size_t InLength) const;
 		void InvokeStaticMethodRetInternal(std::string_view InMethodName, const void** InParameters, const ManagedType* InParameterTypes, size_t InLength, void* InResultStorage) const;
 
 	private:
-		TypeId m_TypePtr = nullptr;
+		TypeId m_Id = -1;
 		Type* m_BaseType = nullptr;
-
-		std::string m_Name;
-		std::string m_Namespace;
+		Type* m_ElementType = nullptr;
 
 		friend class HostInstance;
 		friend class ManagedAssembly;
@@ -121,6 +121,16 @@ namespace Coral {
 		friend class FieldInfo;
 		friend class PropertyInfo;
 		friend class Attribute;
+		friend class ReflectionType;
+	};
+
+	class ReflectionType
+	{
+	public:
+		operator Type&() const;
+
+	private:
+		TypeId m_TypeID;
 	};
 
 }

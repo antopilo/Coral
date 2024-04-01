@@ -8,8 +8,10 @@
 
 #include <Coral/HostInstance.hpp>
 #include <Coral/GC.hpp>
-#include <Coral/NativeArray.hpp>
+#include <Coral/Array.hpp>
 #include <Coral/Attribute.hpp>
+
+Coral::Type g_TestsType;
 
 void ExceptionCallback(std::string_view InMessage)
 {
@@ -26,23 +28,28 @@ int64_t LongMarshalIcall(int64_t InValue) { return InValue * 2; }
 uint64_t ULongMarshalIcall(uint64_t InValue) { return InValue * 2; }
 float FloatMarshalIcall(float InValue) { return InValue * 2.0f; }
 double DoubleMarshalIcall(double InValue) { return InValue * 2.0; }
-bool BoolMarshalIcall(bool InValue) { return !InValue; }
+bool BoolMarshalIcall(bool InValue)
+{
+	std::cout << "C++: " << (uint32_t)InValue << std::endl;
+	return !InValue;
+}
 int32_t* IntPtrMarshalIcall(int32_t* InValue)
 {
 	*InValue *= 2;
 	return InValue;
 }
-Coral::NativeString StringMarshalIcall(Coral::NativeString InStr)
+Coral::String StringMarshalIcall(Coral::String InStr)
 {
 	return InStr;
 }
-void StringMarshalIcall2(Coral::NativeString InStr)
+void StringMarshalIcall2(Coral::String InStr)
 {
-	std::cout << InStr.ToString() << std::endl;
+	std::cout << std::string(InStr) << std::endl;
 }
-Coral::TypeId TypeMarshalIcall(Coral::TypeId InTypeId)
+bool TypeMarshalIcall(Coral::ReflectionType InReflectionType)
 {
-	return InTypeId;
+	Coral::Type& type = InReflectionType;
+	return type == g_TestsType;
 }
 
 struct DummyStruct
@@ -67,10 +74,22 @@ DummyStruct* DummyStructPtrMarshalIcall(DummyStruct* InStruct)
 	return InStruct;
 }
 
-Coral::NativeArray<float> FloatArrayIcall()
+Coral::Array<int32_t> EmptyArrayIcall()
+{
+	std::vector<int32_t> empty;
+	return Coral::Array<int32_t>::New(empty);
+}
+
+Coral::Array<float> FloatArrayIcall()
 {
 	std::vector<float> floats = { 5.0f, 10.0f, 15.0f, 50.0f };
-	return Coral::NativeArray(floats);
+	return Coral::Array<float>::New(floats);
+}
+
+Coral::ManagedObject instance;
+Coral::ManagedObject NativeInstanceIcall()
+{
+	return instance;
 }
 
 void RegisterTestInternalCalls(Coral::ManagedAssembly& InAssembly)
@@ -92,8 +111,9 @@ void RegisterTestInternalCalls(Coral::ManagedAssembly& InAssembly)
 	InAssembly.AddInternalCall("Testing.Managed.Tests", "DummyStructMarshalIcall", reinterpret_cast<void*>(&DummyStructMarshalIcall));
 	InAssembly.AddInternalCall("Testing.Managed.Tests", "DummyStructPtrMarshalIcall", reinterpret_cast<void*>(&DummyStructPtrMarshalIcall));
 	InAssembly.AddInternalCall("Testing.Managed.Tests", "TypeMarshalIcall", reinterpret_cast<void*>(&TypeMarshalIcall));
-	InAssembly.AddInternalCall("Testing.Managed.Tests", "TypeMarshalIcall", reinterpret_cast<void*>(&TypeMarshalIcall));
+	InAssembly.AddInternalCall("Testing.Managed.Tests", "EmptyArrayIcall", reinterpret_cast<void*>(&EmptyArrayIcall));
 	InAssembly.AddInternalCall("Testing.Managed.Tests", "FloatArrayIcall", reinterpret_cast<void*>(&FloatArrayIcall));
+	InAssembly.AddInternalCall("Testing.Managed.Tests", "NativeInstanceIcall", reinterpret_cast<void*>(&NativeInstanceIcall));
 }
 
 struct Test
@@ -105,7 +125,7 @@ std::vector<Test> tests;
 
 void RegisterTest(std::string_view InName, std::function<bool()> InFunc)
 {
-	tests.emplace_back(std::string(InName), std::move(InFunc));
+	tests.push_back(Test{ std::string(InName), std::move(InFunc) });
 }
 
 void RegisterMemberMethodTests(Coral::HostInstance& InHost, Coral::ManagedObject InObject)
@@ -124,8 +144,8 @@ void RegisterMemberMethodTests(Coral::HostInstance& InHost, Coral::ManagedObject
 	RegisterTest("IntPtrTest", [InObject]() mutable{ int32_t v = 10; return *InObject.InvokeMethod<int32_t*, int32_t*>("IntPtrTest", &v) == 50; });
 	RegisterTest("StringTest", [InObject, &InHost]() mutable
 	{
-		auto str = InObject.InvokeMethod<Coral::NativeString, Coral::NativeString>("StringTest", Coral::NativeString::FromUTF8("Hello"));
-		return Coral::NativeString::ToUTF8(str) == "Hello, World!";
+		Coral::ScopedString str = InObject.InvokeMethod<Coral::String, Coral::String>("StringTest", Coral::String::New("Hello"));
+		return str == "Hello, World!";
 	});
 	
 	RegisterTest("DummyStructTest", [InObject]() mutable
@@ -275,12 +295,13 @@ void RegisterFieldMarshalTests(Coral::HostInstance& InHost, Coral::ManagedObject
 	});
 	RegisterTest("StringFieldTest", [InObject]() mutable
 	{
-		auto value = InObject.GetFieldValue<Coral::NativeString>("StringFieldTest");
-		if (value.ToString() != "Hello")
+		Coral::ScopedString value = InObject.GetFieldValue<Coral::String>("StringFieldTest");
+		if (value != "Hello")
 			return false;
-		InObject.SetFieldValue("StringFieldTest", Coral::NativeString::FromUTF8("Hello, World!"));
-		value = InObject.GetFieldValue<Coral::NativeString>("StringFieldTest");
-		return value.ToString() == "Hello, World!";
+
+		InObject.SetFieldValue("StringFieldTest", Coral::String::New("Hello, World!"));
+		value = InObject.GetFieldValue<Coral::String>("StringFieldTest");
+		return value == "Hello, World!";
 	});
 
 	///// PROPERTIES ////
@@ -396,12 +417,12 @@ void RegisterFieldMarshalTests(Coral::HostInstance& InHost, Coral::ManagedObject
 	});
 	RegisterTest("StringPropertyTest", [InObject]() mutable
 	{
-		auto value = InObject.GetPropertyValue<Coral::NativeString>("StringPropertyTest");
-		if (value.ToString() != "Hello")
+		Coral::ScopedString value = InObject.GetPropertyValue<Coral::String>("StringPropertyTest");
+		if (value != "Hello")
 			return false;
-		InObject.SetPropertyValue("StringPropertyTest", Coral::NativeString::FromUTF8("Hello, World!"));
-		value = InObject.GetPropertyValue<Coral::NativeString>("StringPropertyTest");
-		return value.ToString() == "Hello, World!";
+		InObject.SetPropertyValue("StringPropertyTest", Coral::String::New("Hello, World!"));
+		value = InObject.GetPropertyValue<Coral::String>("StringPropertyTest");
+		return value == "Hello, World!";
 	});
 }
 
@@ -422,7 +443,7 @@ void RunTests()
 			std::cerr << "[" << i + 1 << " / " << tests.size() << " (" << test.Name << "): Failed\n"; 
 		}
 	}
-	std::cout << "[NativeTest]: Done. " << passedTests << " passed, " << tests.size() - passedTests  << " failed.";
+	std::cout << "[NativeTest]: Done. " << passedTests << " passed, " << tests.size() - passedTests  << " failed.\n";
 }
 
 int main(int argc, char** argv)
@@ -452,6 +473,13 @@ int main(int argc, char** argv)
 	assembly.UploadInternalCalls();
 
 	auto& testsType = assembly.GetType("Testing.Managed.Tests");
+	g_TestsType = testsType;
+	testsType.InvokeStaticMethod("StaticMethodTest", 50.0f);
+	testsType.InvokeStaticMethod("StaticMethodTest", 1000);
+
+	auto& instanceTestType = assembly.GetType("Testing.Managed.InstanceTest");
+	instance = instanceTestType.CreateInstance();
+	instance.SetFieldValue("X", 500.0f);
 
 	Coral::ManagedObject testsInstance = testsType.CreateInstance();
 	testsInstance.InvokeMethod("RunManagedTests");
@@ -462,11 +490,23 @@ int main(int argc, char** argv)
 
 	auto fieldTestObject = fieldTestType.CreateInstance();
 
+	auto dummyClassInstance = assembly.GetType("Testing.Managed.DummyClass").CreateInstance();
+	dummyClassInstance.SetFieldValue("X", 500.0f);
+
+	struct DummyStruct
+	{
+		float X;
+	} ds;
+	ds.X = 50.0f;
+	fieldTestObject.SetFieldValue("DummyClassTest", dummyClassInstance);
+	fieldTestObject.SetFieldValue("DummyStructTest", ds);
+	fieldTestObject.InvokeMethod("TestClassAndStruct");
+	dummyClassInstance.Destroy();
+
 	for (auto fieldInfo : fieldTestType.GetFields())
 	{
 		auto& type = fieldInfo.GetType();
 		auto accessibility = fieldInfo.GetAccessibility();
-		std::cout << fieldInfo.GetName() << " is " << type.GetFullName() << std::endl;
 
 		auto attributes = fieldInfo.GetAttributes();
 		for (auto attrib : attributes)
@@ -481,7 +521,6 @@ int main(int argc, char** argv)
 	for (auto propertyInfo : fieldTestType.GetProperties())
 	{
 		auto& type = propertyInfo.GetType();
-		std::cout << propertyInfo.GetName() << " is " << type.GetFullName() << std::endl;
 
 		auto attributes = propertyInfo.GetAttributes();
 		for (auto attrib : attributes)
@@ -495,26 +534,26 @@ int main(int argc, char** argv)
 	
 	auto& memberMethodTestType = assembly.GetType("Testing.Managed.MemberMethodTest");
 
-	for (auto methodInfo : memberMethodTestType.GetMethods())
-	{
-		auto& type = methodInfo.GetReturnType();
-		auto accessibility = methodInfo.GetAccessibility();
-		std::cout << methodInfo.GetName() << ", Returns: " << type.GetFullName() << std::endl;
-		const auto& parameterTypes = methodInfo.GetParameterTypes();
-		for (const auto& paramType : parameterTypes)
-		{
-			std::cout << "\t" << paramType->GetFullName() << std::endl;
-		}
+	// for (auto methodInfo : memberMethodTestType.GetMethods())
+	// {
+	// 	auto& type = methodInfo.GetReturnType();
+	// 	auto accessibility = methodInfo.GetAccessibility();
+	// 	std::cout << methodInfo.GetName() << ", Returns: " << type.GetFullName() << std::endl;
+	// 	const auto& parameterTypes = methodInfo.GetParameterTypes();
+	// 	for (const auto& paramType : parameterTypes)
+	// 	{
+	// 		std::cout << "\t" << paramType->GetFullName() << std::endl;
+	// 	}
 
-		auto attributes = methodInfo.GetAttributes();
-		for (auto attrib : attributes)
-		{
-			auto& attribType = attrib.GetType();
+	// 	auto attributes = methodInfo.GetAttributes();
+	// 	for (auto attrib : attributes)
+	// 	{
+	// 		auto& attribType = attrib.GetType();
 
-			if (attribType.GetFullName() == "Testing.Managed.DummyAttribute")
-				std::cout << attrib.GetFieldValue<float>("SomeValue") << std::endl;
-		}
-	}
+	// 		if (attribType.GetFullName() == "Testing.Managed.DummyAttribute")
+	// 			std::cout << attrib.GetFieldValue<float>("SomeValue") << std::endl;
+	// 	}
+	// }
 
 	auto memberMethodTest = memberMethodTestType.CreateInstance();
 
@@ -534,6 +573,7 @@ int main(int argc, char** argv)
 	instance1.InvokeMethod("TestMe");
 	instance2.InvokeMethod("TestMe");
 
+	instance.Destroy();
 	instance1.Destroy();
 	instance2.Destroy();
 
@@ -543,7 +583,7 @@ int main(int argc, char** argv)
 
 	std::cin.get();
 
-	loadContext = hostInstance.CreateAssemblyLoadContext("Fucku");
+	loadContext = hostInstance.CreateAssemblyLoadContext("ALC2");
 	auto& newAssembly = loadContext.LoadAssembly(assemblyPath.string());
 
 	auto ls = newAssembly.GetLoadStatus();
@@ -552,10 +592,16 @@ int main(int argc, char** argv)
 	newAssembly.UploadInternalCalls();
 
 	auto& testsType2 = newAssembly.GetType("Testing.Managed.Tests");
+	g_TestsType = testsType2;
+
+	auto& instanceTestType2 = newAssembly.GetType("Testing.Managed.InstanceTest");
+	instance = instanceTestType2.CreateInstance();
+	instance.SetFieldValue("X", 500.0f);
 
 	Coral::ManagedObject testsInstance2 = testsType2.CreateInstance();
 	testsInstance2.InvokeMethod("RunManagedTests");
 	testsInstance2.Destroy();
+	instance.Destroy();
 	std::cin.get();
 
 	return 0;

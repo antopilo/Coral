@@ -29,7 +29,7 @@ project "Coral.Native"
     }
 
     includedirs { "Source/", "Include/Coral/" }
-    externalincludedirs { "../NetCore/7.0.7/" }
+    externalincludedirs { "../NetCore/" }
 
     filter { "configurations:Debug" }
         runtime "Debug"
@@ -39,3 +39,12 @@ project "Coral.Native"
         runtime "Release"
         symbols "Off"
         optimize "On"
+
+	filter { "system:windows" }
+		defines { "CORAL_WINDOWS" }
+
+	filter { "system:linux" }
+		defines { "CORAL_LINUX" }
+
+	filter { "system:macosx" }
+		defines { "CORAL_MACOSX" }

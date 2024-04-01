@@ -7,6 +7,16 @@ using Coral.Managed.Interop;
 
 namespace Testing.Managed {
 
+	public class InstanceTest
+	{
+		public float X = 50.0f;
+
+		public float Stuff()
+		{
+			return X * 10.0f;
+		}
+	}
+
 	public class Tests
 	{
 		internal static unsafe delegate*<sbyte, sbyte> SByteMarshalIcall;
@@ -23,8 +33,10 @@ namespace Testing.Managed {
 		internal static unsafe delegate*<IntPtr, IntPtr> IntPtrMarshalIcall;
 		internal static unsafe delegate*<NativeString, NativeString> StringMarshalIcall;
 		internal static unsafe delegate*<NativeString, void> StringMarshalIcall2;
-		internal static unsafe delegate*<Type, Type> TypeMarshalIcall;
+		internal static unsafe delegate*<ReflectionType, bool> TypeMarshalIcall;
 		internal static unsafe delegate*<NativeArray<float>> FloatArrayIcall;
+		internal static unsafe delegate*<NativeArray<int>> EmptyArrayIcall;
+		internal static unsafe delegate*<NativeInstance<InstanceTest>> NativeInstanceIcall;
 
 		internal struct DummyStruct
 		{
@@ -35,6 +47,16 @@ namespace Testing.Managed {
 		internal static unsafe delegate*<DummyStruct, DummyStruct> DummyStructMarshalIcall;
 		internal static unsafe delegate*<DummyStruct*, DummyStruct*> DummyStructPtrMarshalIcall;
 		
+		public static void StaticMethodTest(float value)
+		{
+			Console.WriteLine(value);
+		}
+
+		public static void StaticMethodTest(int value)
+		{
+			Console.WriteLine(value);
+		}
+
 		[Test]
 		public bool SByteMarshalTest()
 		{
@@ -102,6 +124,21 @@ namespace Testing.Managed {
 		}
 
 		[Test]
+		public bool EmptyArrayTest()
+		{
+			unsafe
+			{
+				using var arr = EmptyArrayIcall();
+				foreach (var item in arr)
+				{
+					Console.WriteLine(item);
+				}
+			}
+
+			return true;
+		}
+
+		[Test]
 		public bool FloatArrayTest()
 		{
 			float[] requiredValues = new[]{ 5.0f, 10.0f, 15.0f, 50.0f };
@@ -129,7 +166,7 @@ namespace Testing.Managed {
 			Marshal.FreeCoTaskMem(data);
 			return success;
 		}
-		
+
 		[Test]
 		public bool StringMarshalTest()
 		{
@@ -181,7 +218,15 @@ namespace Testing.Managed {
 		public bool TypeMarshalTest()
 		{
 			var t = typeof(Tests);
-			unsafe { return TypeMarshalIcall(t) == t; }
+			unsafe { return TypeMarshalIcall(t); }
+		}
+
+		[Test]
+		public bool NativeInstanceTest()
+		{
+			InstanceTest? instanceTest;
+			unsafe { instanceTest = NativeInstanceIcall(); }
+			return instanceTest?.X == 500.0f;
 		}
 
 		public void RunManagedTests()

@@ -31,20 +31,7 @@ public sealed class NativeArrayEnumerator<T> : IEnumerator<T>
 
 	object IEnumerator.Current => Current!;
 
-	public T Current
-	{
-		get
-		{
-			try
-			{
-				return m_Elements[m_Index];
-			}
-			catch (IndexOutOfRangeException)
-			{
-				throw new InvalidOperationException();
-			}
-		}
-	}
+	public T Current => m_Elements[m_Index];
 
 }
 
@@ -88,8 +75,13 @@ public struct NativeArray<T> : IDisposable, IEnumerable<T>
 
 	public T[] ToArray()
 	{
-		Span<T> data;
-		unsafe { data = new Span<T>(m_NativeArray.ToPointer(), m_NativeLength); }
+		Span<T> data = Span<T>.Empty;
+
+		if (m_NativeArray != IntPtr.Zero && m_NativeLength > 0)
+		{
+			unsafe { data = new Span<T>(m_NativeArray.ToPointer(), m_NativeLength); }
+		}
+
 		return data.ToArray();
 	}
 
@@ -122,6 +114,31 @@ public struct NativeArray<T> : IDisposable, IEnumerable<T>
 
 	public static implicit operator T[](NativeArray<T> InArray) => InArray.ToArray();
 
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+public struct NativeInstance<T>
+{
+	private readonly IntPtr m_Handle;
+	private readonly IntPtr m_Unused;
+
+	public T? Get()
+	{
+		if (m_Handle == IntPtr.Zero)
+			return default;
+
+		GCHandle handle = GCHandle.FromIntPtr(m_Handle);
+
+		if (!(handle.Target is T))
+			return default;
+		
+		return (T)handle.Target;
+	}
+
+	public static implicit operator T?(NativeInstance<T> InInstance)
+	{
+		return InInstance.Get();
+	}
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -161,4 +178,20 @@ public struct Bool32
 
 	public static implicit operator Bool32(bool InValue) => new() { Value = InValue ? 1u : 0u };
 	public static implicit operator bool(Bool32 InBool32) => InBool32.Value > 0;
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+public struct ReflectionType
+{
+	private readonly int m_TypeId;
+
+	public int ID => m_TypeId;
+
+	public ReflectionType(int InTypeID)
+	{
+		m_TypeId = InTypeID;
+	}
+
+	public static implicit operator ReflectionType(Type? InType) => new(TypeInterface.s_CachedTypes.Add(InType));
+
 }
