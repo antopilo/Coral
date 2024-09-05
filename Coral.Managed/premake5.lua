@@ -8,14 +8,14 @@ project "Coral.Managed"
 	
     -- Don't specify architecture here. (see https://github.com/premake/premake-core/issues/1758)
 
-    propertytags {
-        { "AppendTargetFrameworkToOutputPath", "false" },
-        { "Nullable", "enable" },
-    }
+        propertytags {
+            { "AppendTargetFrameworkToOutputPath", "false" },
+            { "Nullable", "enable" },
+        }
 
-    disablewarnings {
-        "CS8500"
-    }
+        disablewarnings {
+            "CS8500"
+        }
 
     files {
         "Source/**.cs"

@@ -87,7 +87,7 @@ internal static class ManagedObject
 	internal static Dictionary<MethodKey, MethodInfo> s_CachedMethods = new Dictionary<MethodKey, MethodInfo>();
 
 	[UnmanagedCallersOnly]
-	private static unsafe IntPtr CreateObject(int InTypeID, Bool32 InWeakRef, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
+	internal static unsafe IntPtr CreateObject(int InTypeID, Bool32 InWeakRef, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
 	{
 		try
 		{
@@ -151,7 +151,7 @@ internal static class ManagedObject
 	}
 
 	[UnmanagedCallersOnly]
-	public static void DestroyObject(IntPtr InObjectHandle)
+	internal static void DestroyObject(IntPtr InObjectHandle)
 	{
 		try
 		{
@@ -206,7 +206,7 @@ internal static class ManagedObject
 	}
 
 	[UnmanagedCallersOnly]
-	private static unsafe void InvokeStaticMethod(int InType, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
+	internal static unsafe void InvokeStaticMethod(int InType, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
 	{
 		try
 		{
@@ -228,7 +228,7 @@ internal static class ManagedObject
 	}
 
 	[UnmanagedCallersOnly]
-	private static unsafe void InvokeStaticMethodRet(int InType, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount, IntPtr InResultStorage)
+	internal static unsafe void InvokeStaticMethodRet(int InType, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount, IntPtr InResultStorage)
 	{
 		try
 		{
@@ -246,7 +246,7 @@ internal static class ManagedObject
 			if (value == null)
 				return;
 
-			Marshalling.MarshalReturnValue(value, methodInfo.ReturnType, InResultStorage);
+			Marshalling.MarshalReturnValue(null, value, methodInfo, InResultStorage);
 		}
 		catch (Exception ex)
 		{
@@ -255,7 +255,7 @@ internal static class ManagedObject
 	}
 
 	[UnmanagedCallersOnly]
-	private static unsafe void InvokeMethod(IntPtr InObjectHandle, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
+	internal static unsafe void InvokeMethod(IntPtr InObjectHandle, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
 	{
 		try
 		{
@@ -279,9 +279,9 @@ internal static class ManagedObject
 			HandleException(ex);
 		}
 	}
-
+	
 	[UnmanagedCallersOnly]
-	private static unsafe void InvokeMethodRet(IntPtr InObjectHandle, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount, IntPtr InResultStorage)
+	internal static unsafe void InvokeMethodRet(IntPtr InObjectHandle, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount, IntPtr InResultStorage)
 	{
 		try
 		{
@@ -303,7 +303,7 @@ internal static class ManagedObject
 			if (value == null)
 				return;
 
-			Marshalling.MarshalReturnValue(value, methodInfo.ReturnType, InResultStorage);
+			Marshalling.MarshalReturnValue(target, value, methodInfo, InResultStorage);
 		}
 		catch (Exception ex)
 		{
@@ -312,7 +312,7 @@ internal static class ManagedObject
 	}
 
 	[UnmanagedCallersOnly]
-	private static void SetFieldValue(IntPtr InTarget, NativeString InFieldName, IntPtr InValue)
+	internal static void SetFieldValue(IntPtr InTarget, NativeString InFieldName, IntPtr InValue)
 	{
 		try
 		{
@@ -343,7 +343,7 @@ internal static class ManagedObject
 	}
 
 	[UnmanagedCallersOnly]
-	private static void GetFieldValue(IntPtr InTarget, NativeString InFieldName, IntPtr OutValue)
+	internal static void GetFieldValue(IntPtr InTarget, NativeString InFieldName, IntPtr OutValue)
 	{
 		try
 		{
@@ -364,7 +364,7 @@ internal static class ManagedObject
 				return;
 			}
 
-			Marshalling.MarshalReturnValue(fieldInfo.GetValue(target), fieldInfo.FieldType, OutValue);
+			Marshalling.MarshalReturnValue(target, fieldInfo.GetValue(target), fieldInfo, OutValue);
 		}
 		catch (Exception ex)
 		{
@@ -373,7 +373,7 @@ internal static class ManagedObject
 	}
 
 	[UnmanagedCallersOnly]
-	private static void SetPropertyValue(IntPtr InTarget, NativeString InPropertyName, IntPtr InValue)
+	internal static void SetPropertyValue(IntPtr InTarget, NativeString InPropertyName, IntPtr InValue)
 	{
 		try
 		{
@@ -410,7 +410,7 @@ internal static class ManagedObject
 	}
 
 	[UnmanagedCallersOnly]
-	private static void GetPropertyValue(IntPtr InTarget, NativeString InPropertyName, IntPtr OutValue)
+	internal static void GetPropertyValue(IntPtr InTarget, NativeString InPropertyName, IntPtr OutValue)
 	{
 		try
 		{
@@ -437,7 +437,28 @@ internal static class ManagedObject
 				return;
 			}
 
-			Marshalling.MarshalReturnValue(propertyInfo.GetValue(target), propertyInfo.PropertyType, OutValue);
+			Marshalling.MarshalReturnValue(target, propertyInfo.GetValue(target), propertyInfo, OutValue);
+		}
+		catch (Exception ex)
+		{
+			HandleException(ex);
+		}
+	}
+
+	[UnmanagedCallersOnly]
+	internal static unsafe void GetObjectTypeId(IntPtr InTarget, int* typeId)
+	{
+		try
+		{
+			var target = GCHandle.FromIntPtr(InTarget).Target;
+
+			if (target == null)
+			{
+				LogMessage($"Cannot get type of object. Target was null.", MessageLevel.Error);
+				return;
+			}
+
+			*typeId = TypeInterface.s_CachedTypes.Add(target.GetType());
 		}
 		catch (Exception ex)
 		{
