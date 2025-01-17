@@ -7,6 +7,8 @@
 #include "FieldInfo.hpp"
 #include "PropertyInfo.hpp"
 
+#include <optional>
+
 namespace Coral {
 
 	class Type
@@ -16,6 +18,7 @@ namespace Coral {
 		String GetAssemblyQualifiedName() const;
 
 		Type& GetBaseType();
+		std::vector<Type*>& GetInterfaceTypes();
 
 		int32_t GetSize() const;
 
@@ -112,6 +115,7 @@ namespace Coral {
 	private:
 		TypeId m_Id = -1;
 		Type* m_BaseType = nullptr;
+		std::optional<std::vector<Type*>> m_InterfaceTypes = std::nullopt;
 		Type* m_ElementType = nullptr;
 
 		friend class HostInstance;

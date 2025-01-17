@@ -4,8 +4,10 @@
 
 namespace Coral {
 
+#pragma pack(push)
+#pragma pack(1)
 	template<typename TValue>
-	class Array
+	class [[gnu::packed]] Array
 	{
 	public:
 		static Array New(size_t InLength)
@@ -28,6 +30,20 @@ namespace Coral {
 				result.m_Ptr = static_cast<TValue*>(Memory::AllocHGlobal(InValues.size() * sizeof(TValue)));
 				result.m_Length = static_cast<int32_t>(InValues.size());
 				memcpy(result.m_Ptr, InValues.data(), InValues.size() * sizeof(TValue));
+			}
+
+			return result;
+		}
+
+		static Array New(const void* buffer, size_t size)
+		{
+			Array<TValue> result;
+
+			if (buffer)
+			{
+				result.m_Ptr = static_cast<TValue*>(Memory::AllocHGlobal(size));
+				result.m_Length = static_cast<int32_t>(size);
+				memcpy(result.m_Ptr, buffer, size);
 			}
 
 			return result;
@@ -88,5 +104,6 @@ namespace Coral {
 		int32_t m_Length = 0;
 		Bool32 m_IsDisposed = false;
 	};
+#pragma pack(pop)
 
 }

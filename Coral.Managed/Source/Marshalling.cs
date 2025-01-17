@@ -9,9 +9,12 @@ namespace Coral.Managed;
 
 public static class Marshalling
 {
+#pragma warning disable 0649
+	// This needs to map to Coral::Array, hence the unused ArrayHandle
 	struct ValueArrayContainer
 	{
 		public IntPtr Data;
+		public IntPtr ArrayHandle;
 		public int Length;
 	};
 
@@ -22,6 +25,13 @@ public static class Marshalling
 		public IntPtr ArrayHandle;
 		public int Length;
 	};
+
+	private struct ArrayObject
+	{
+		public IntPtr Handle;
+		public IntPtr Padding;
+	}
+#pragma warning restore 0649
 
 	public static void MarshalReturnValue(object? InTarget, object? InValue, MemberInfo? InMemberInfo, IntPtr OutValue)
 	{
@@ -43,7 +53,7 @@ public static class Marshalling
 			type = methodInfo.ReturnType;
 		}
 
-		if (type.IsSZArray)
+		if (type != null && type.IsSZArray)
 		{
 			var fieldArray = ArrayStorage.GetFieldArray(InTarget, InValue, InMemberInfo);
 
@@ -71,7 +81,7 @@ public static class Marshalling
 			NativeString nativeString = (NativeString) InValue;
 			Marshal.StructureToPtr((NativeString) InValue, OutValue, false);
 		}
-		else if (type.IsPointer)
+		else if (type != null && type.IsPointer)
 		{
 			unsafe
 			{
@@ -86,7 +96,7 @@ public static class Marshalling
 				}
 			}
 		}
-		else
+		else if (type != null)
 		{
 			int valueSize = type.IsEnum ? Marshal.SizeOf(Enum.GetUnderlyingType(type)) : Marshal.SizeOf(type);
 			var handle = GCHandle.Alloc(InValue, GCHandleType.Pinned);
@@ -98,12 +108,7 @@ public static class Marshalling
 
 			handle.Free();
 		}
-	}
-
-	private struct ArrayObject
-	{
-		public IntPtr Handle;
-		public IntPtr Padding;
+		else throw new ArgumentNullException("InMemberInfo:Type");
 	}
 
 	public static object? MarshalArray(IntPtr InArray, Type? InElementType)

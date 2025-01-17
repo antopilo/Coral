@@ -1,5 +1,3 @@
-include "../../Premake/CSExtensions.lua"
-
 project "Example.Managed"
     language "C#"
     dotnetframework "net8.0"
@@ -8,10 +6,12 @@ project "Example.Managed"
 	
     -- Don't specify architecture here. (see https://github.com/premake/premake-core/issues/1758)
 
-    propertytags {
-        { "AppendTargetFrameworkToOutputPath", "false" },
-        { "Nullable", "enable" }
-    }
+	vsprops {
+		AppendTargetFrameworkToOutputPath = "false",
+		Nullable = "enable",
+		CopyLocalLockFileAssemblies = "true",
+		EnableDynamicLoading = "true",
+	}
 
     files {
         "Source/**.cs"
